@@ -55,16 +55,18 @@ impl Runnable for LintCmd {
             repo_path.display()
         );
 
-        let invalid_advisory_count = linter.lint().unwrap_or_else(|e| {
+        let invalid_advisories = linter.lint().unwrap_or_else(|e| {
             status_err!("error linting advisory DB {}: {}", repo_path.display(), e);
 
             exit(1);
         });
-
-        if invalid_advisory_count == 0 {
+        if invalid_advisories.len() == 0 {
             status_ok!("Success", "all advisories are well-formed");
         } else {
-            status_err!("{} advisories contain errors!", invalid_advisory_count);
+            status_err!("{} advisories contain errors!", invalid_advisories.len());
+            for a in invalid_advisories {
+                status_err!(a);
+            }
             exit(1);
         }
     }

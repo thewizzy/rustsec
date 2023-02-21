@@ -26,8 +26,8 @@ pub struct Linter {
     /// Loaded Advisory DB
     advisory_db: rustsec::Database,
 
-    /// Total number of invalid advisories encountered
-    invalid_advisories: usize,
+    /// Vector of invalid
+    invalid_advisories: Vec<String>,
 
     /// Skip namecheck list
     skip_namecheck: Option<String>,
@@ -48,7 +48,7 @@ impl Linter {
             repo_path,
             crates_index,
             advisory_db,
-            invalid_advisories: 0,
+            invalid_advisories: vec![],
             skip_namecheck,
         })
     }
@@ -59,7 +59,7 @@ impl Linter {
     }
 
     /// Lint the loaded database
-    pub fn lint(mut self) -> Result<usize, Error> {
+    pub fn lint(mut self) -> Result<Vec<String>, Error> {
         for collection in COLLECTIONS {
             for crate_entry in fs::read_dir(self.repo_path.join(collection.as_str())).unwrap() {
                 let crate_dir = crate_entry.unwrap().path();
@@ -110,12 +110,13 @@ impl Linter {
         if lint_result.errors().is_empty() {
             status_ok!("Linted", "ok: {}", advisory_path.display());
         } else {
-            self.invalid_advisories += 1;
-
-            status_err!(
+            let error = format!(
                 "{} contained the following lint errors:",
                 advisory_path.display()
             );
+            status_err!(&error);
+
+            self.invalid_advisories.push(error);
 
             for error in lint_result.errors() {
                 println!("  - {}", error);
@@ -130,13 +131,14 @@ impl Linter {
         if !self.name_is_skipped(advisory.metadata.package.as_str())
             && !self.name_exists_on_crates_io(advisory.metadata.package.as_str())
         {
-            self.invalid_advisories += 1;
-
-            fail!(
-                ErrorKind::CratesIo,
-                "crates.io package name does not match package name in advisory for {}",
-                advisory.metadata.package.as_str()
+            let error = format!(
+                "crates.io package name does not match package name in advisory for {}. This is part of the {} advisory.",
+                advisory.metadata.package.as_str(),
+                advisory.title(),
             );
+            status_err!(&error);
+
+            self.invalid_advisories.push(error);
         }
 
         Ok(())
