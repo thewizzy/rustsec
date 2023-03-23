@@ -1,7 +1,7 @@
 //! RustSec Advisory DB Linter
 
 use crate::{
-    error::{Error, ErrorKind},
+    error::Error,
     prelude::*,
 };
 use crates_index::Index;
@@ -65,12 +65,14 @@ impl Linter {
                 let crate_dir = crate_entry.unwrap().path();
 
                 if !crate_dir.is_dir() {
-                    fail!(
-                        ErrorKind::RustSec,
+                    let error = format!(
                         "unexpected file in `{}`: {}",
                         collection,
                         crate_dir.display()
                     );
+                    status_err!(&error);
+
+                    self.invalid_advisories.push(error);
                 }
 
                 for advisory_entry in crate_dir.read_dir().unwrap() {
@@ -91,12 +93,14 @@ impl Linter {
         advisory_path: &Path,
     ) -> Result<(), Error> {
         if !advisory_path.is_file() {
-            fail!(
-                ErrorKind::RustSec,
+            let error = format!(
                 "unexpected entry in `{}`: {}",
                 collection,
                 advisory_path.display()
             );
+            status_err!(&error);
+
+            self.invalid_advisories.push(error);
         }
 
         let advisory = rustsec::Advisory::load_file(advisory_path)?;
@@ -132,9 +136,9 @@ impl Linter {
             && !self.name_exists_on_crates_io(advisory.metadata.package.as_str())
         {
             let error = format!(
-                "crates.io package name does not match package name in advisory for {}. This is part of the {} advisory.",
+                "crates.io package name does not match package name in advisory for {} in {}",
                 advisory.metadata.package.as_str(),
-                advisory.title(),
+                advisory.metadata.id
             );
             status_err!(&error);
 
